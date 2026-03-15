@@ -2,7 +2,6 @@ import type { ChangePasswordResponse, GetPupilsResponse } from "../types.ts";
 
 import { BaseClient } from "../core/baseClient.ts";
 import { API_BASE_PARENT, BASE_URL } from "../utils/consts.ts";
-import { parseCookies } from "../utils/utils.ts";
 /**
  * Parent Client.
  * See {@link BaseClient} for all shared methods.
@@ -48,26 +47,19 @@ export class ParentClient extends BaseClient {
 		const headers = new Headers({
 			"Content-Type": "application/x-www-form-urlencoded",
 		});
-		const response = await fetch(`${BASE_URL}/parent/login`, {
+		const response = await fetch(`${BASE_URL}/apiv2parent/login`, {
 			method: "POST",
 			body: formData,
 			headers: headers,
-			redirect: "manual",
 		});
-		if (response.status !== 302 || !response.headers.has("set-cookie")) {
-			await response.body?.cancel(); // Make deno tests happy by closing the body, unsure whether this is needed for the actual library
-			throw new Error(
-				"Unauthenticated: ClassCharts didn't return authentication cookies",
-			);
+
+		const json = await response.json();
+
+		if (!json.success || !json.meta?.session_id) {
+			throw new Error(`Unauthenticated: ${json.error || "Login failed"}`);
 		}
 
-		const cookies = String(response.headers.get("set-cookie"));
-		// this.authCookies = cookies.split(";");
-		const sessionCookies = parseCookies(cookies);
-		const sessionID = JSON.parse(
-			String(sessionCookies.parent_session_credentials),
-		);
-		this.sessionId = sessionID.session_id;
+		this.sessionId = json.meta.session_id;
 		this.pupils = await this.getPupils();
 		if (!this.pupils) {
 			throw new Error("Account has no pupils attached");
